@@ -1,0 +1,176 @@
+---
+title: 'SEM: WAIS-III IQ'
+output:
+  pdf_document: default
+  html_notebook: default
+---
+The WAIS-III IQ scale has a proposed four-factor model structure with verbal comprehension, working memory, perceptual organization, and processing speed. You should analyze this structure to determine if the model fits the data and that there are no problems with the model. 
+```{r}
+#load data
+library(data.table)
+IQdata <- fread('https://raw.githubusercontent.com/JiaxiangBU/picbackup/master/IQdata.csv')
+```
+
+```{r}
+head(IQdata)
+```
+
+
+```{r}
+head(IQdata)
+```
+
+## Build a four-factor model
+```{r}
+library(lavaan)
+wais.model <- 'verbalcomp =~ vocab + simil + inform + compreh 
+workingmemory =~ arith + digspan + lnseq
+perceptorg =~ piccomp + block + matrixreason
+processing =~ digsym + symbolsearch'
+```
+
+## Analyze the model and include the data argument
+```{r}
+wais.fit <- cfa(wais.model, IQdata)
+```
+
+## Summarize the model with fit.measures and standardized loadings
+```{r}
+summary(wais.fit, standardized = TRUE, fit.measures=TRUE)
+#there is a problem with the correlation between perceptual organization and processing speed (std. all = 1.031)
+```
+
+To fix a highly correlated set of latent variables, you should collapse those two variables into one latent variable. You should make a performance variable that combines the manifest variables for the perceptorg and processing latent variables.
+
+# Edit the original model
+```{r}
+wais.model <- 'verbalcomp =~ vocab + simil + inform + compreh 
+workingmemory =~ arith + digspan + lnseq
+performance =~ piccomp + block + matrixreason + digsym + symbolsearch'
+```
+
+
+```{r}
+## Analyze the model and include the data argument
+wais.fit <- cfa(wais.model, IQdata)
+```
+
+
+```{r}
+## Summarize the model
+summary(wais.fit, standardized= TRUE, fit.measure=TRUE)
+```
+this solves the Heywood case(Correlations that are out of bound)
+## SEM Diagram
+```{r}
+#Load the library
+library(semPlot)
+
+# Update the default picture
+semPaths(object = wais.fit,
+         layout = "tree",
+         rotation = 1,
+         whatLabels = 'std',       #standardized loading as labels
+         edge.label.cex = 1,
+         what = 'std',             #shading
+         edge.color = 'black')     #color of shading
+```
+
+Our three-factor model picture indicates that some of the loadings are not very strong, which indicates manifest(observable) variables that are not measuring their latent variable.
+
+
+## Add Paths to Improve Fit
+The three-factor model of the WAIS-III showed poor fit when examining the fit indices. You can use the modification indices to view potential parameter estimates to add to the model to improve fit. Correlated error terms are normal estimates to add, as the variance of the manifest variables on the same factor can be related to each other.
+
+## Examine modification indices 
+```{r}
+#View the modification indices output and add the highest mi value to update the model.
+modificationindices(wais.fit, sort = TRUE)
+```
+
+## Update the three-factor model
+```{r}
+wais.model2 <- 'verbalcomp =~ vocab + simil + inform + compreh 
+workingmemory =~ arith + digspan + lnseq
+perceptorg =~ piccomp + block + matrixreason + digsym + symbolsearch
+simil ~~ inform'
+```
+
+## Analyze the three-factor model where data is IQdata
+```{r}
+wais.fit2 <- cfa(wais.model2, IQdata)
+```
+
+## Summarize the three-factor model
+```{r}
+summary(wais.fit2, standardized=TRUE, fit.measures=TRUE )
+```
+This model appears to have better fit indices than the previous model.
+
+## Update the default picture
+```{r}
+semPaths(object = wais.fit2,
+         layout = "tree",
+         rotation = 1,
+         whatLabels = 'std',       #standardized loading as labels
+         edge.label.cex = 1,
+         what = 'std',             #shading
+         edge.color = 'black')     #color of shading
+```
+Use the anova() function and the aic and ecvi fit indices outlined previously to help determine if model fit was significantly improved.
+
+# **Compare the models**
+```{r}
+anova(wais.fit, wais.fit2)
+```
+
+## View the fit indices for the original and updated models
+```{r}
+# View the fit indices for the original model
+fitmeasures(wais.fit, c('aic', 'ecvi'))
+
+# View the fit indices for the updated model
+fitmeasures(wais.fit2, c('aic', 'ecvi'))
+```
+The three-factor model with the added correlated error fits better than the original model!
+
+
+# **HIERARCHICAL MODELS**
+The underlying theory about intelligence states that a general IQ factor predicts performance on the verbal comprehension, working memory, and perceptual organization subfactors. Therefore, you should create a hierarchical model that demonstrates that relationship between the second order latent variable and the first layer of latent variables.
+
+
+## Update the three-factor model to a hierarchical model
+```{r}
+wais.model3 <- 'verbalcomp =~ vocab + simil + inform + compreh 
+workingmemory =~ arith + digspan + lnseq
+perceptorg =~ piccomp + block + matrixreason + digsym + symbolsearch
+simil ~~ inform
+general =~ verbalcomp + workingmemory + perceptorg'   #THISLINE
+```
+
+
+## Analyze the hierarchical model where data is IQdata
+```{r}
+wais.fit3 <- cfa(model = wais.model3, data = IQdata)
+```
+
+## View the fit indices RMSEA and SRMR for the original and updated models
+```{r}
+# Examine the fit indices for the old model
+fitmeasures(wais.fit2, c('rmsea', 'srmr'))
+
+# Examine the fit indices for the new model
+fitmeasures(wais.fit3, c('rmsea', 'srmr'))
+```
+
+## Update the default picture
+```{r}
+semPaths(object = wais.fit3,
+         layout = 'tree',
+         rotation = 1,
+         whatLabels = 'std',
+         edge.label.cex = 1,
+         what = 'std',
+         edge.color = 'navy')
+```
+
